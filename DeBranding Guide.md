@@ -1,4 +1,4 @@
-# Zyxel VMG8623-T50B DE branding
+# Zyxel VMG8623-T50B DeBranding
 > A guide to debrand (remove ISP firmware & locked bootloader) the Zyxel VMG8623-T50B router
 
 ## Tools required 
@@ -7,13 +7,13 @@
 - A usb flash drive formatted with a msdos (MBR) partition table & Fat32
 
 
-# Pre-Requisites 
+# Step 0 (Pre-Requisites)
 
-1. Obtain the root password for your device 
+## 1. Obtain the root password for your device 
 
 Use the password generator in the ZyxelRoot.py file (Execute it online [Here](https://www.onlinegdb.com/XR_spa_we)) to generate the device's root password for the zycli shell, accessible from both SSH & serial TTL. 
 
-2. Open up the device, connect the usb-TTL to the serial headers on the device 
+## 2. Open up the device, connect the usb-TTL to the serial headers on the device 
 
 This operation could be done from ssh but using the serial header you can have a better picture of the state of the device since it outputs bootloader & other debug messages. 
 
@@ -23,7 +23,7 @@ The device has pre-soldered headers.
 
 Don’t forget to connect the router's TxD -> USB-TTL RxD & USB-TTL TxD to router's RxD!
 
-3. obtain shell access 
+## 3. Obtain shell access 
 
  Once the device finishes bootup, you should be greeted by "press enter to enable shell " or similar message, Press return to open the prompt to type the username (`root`) and the root password you generated on the prep step. 
 
@@ -64,9 +64,7 @@ therefore, changing the ModelID is likely possible. Lets do it then
 
 # Step 1 (Unlocking the bootloader)
 
-1. Backup the bootloader
-
-Locate the bootloader: 
+## 1. Locate the bootloader
 
 Running `cat /proc/mtd` will output: 
 ``` 
@@ -86,7 +84,7 @@ mtd12: 000c0000 00020000 "reservearea"
 ```
 And this will show us that `mtd0` is the bootloader that we want to extract. 
 
-2. Dump The Bootloader 
+## 2. Dump The bootloader 
 
 Connect the flash drive to the device and type 
 
@@ -104,7 +102,7 @@ dd if=/dev/mtd0 of=/mnt/usbX_sdYZ/bootloader.bin
 This will have dumped the bootloader partition on the usbFlash. 
 Grab the usb flash, plug it on the computer and open _bootloader.bin_ on okteta (the hex editor of my choice, feel free to use what you are comfortable with)
 
-3. Patch the bootloader 
+## 3. Patch the bootloader 
 
 Edit the byte sequence : `04 05 0F 0D` at offset `0000FFC0` (on my bootloader , yours might be different) To `04 05 05 03`,
 
