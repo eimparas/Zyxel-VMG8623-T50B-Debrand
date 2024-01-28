@@ -2,9 +2,7 @@
 > A guide to debrand (remove ISP firmware & locked bootloader) the Zyxel VMG8623-T50B router
 
 ## Tools required 
-- USB-TTL 
-- A Linux laptop with Minicom & a hex editor (okteta for example)
-- A usb flash drive formatted with a msdos (MBR) partition table & Fat32
+- A Linux machine(or a machine that can ssh into the router and use scp to move files) & a hex editor (okteta for example)
 
 
 # Step 0 (Pre-Requisites)
@@ -13,19 +11,13 @@
 
 Use the password generator in the ZyxelRoot.py file (Execute it online [Here](https://www.onlinegdb.com/XR_spa_we)) to generate the device's root password for the zycli shell, accessible from both SSH & serial TTL. 
 
-## 2. Open up the device, connect the usb-TTL to the serial headers on the device 
+## 2. Connect to the device 
 
-This operation could be done from ssh but using the serial header you can have a better picture of the state of the device since it outputs bootloader & other debug messages. 
-
-The device has pre-soldered headers. 
-
-![Serial Header](IMG/SerialHeader.jpg)
-
-Don’t forget to connect the router's TxD -> USB-TTL RxD & USB-TTL TxD to router's RxD!
-
-## 3. Obtain shell access 
-
- Once the device finishes bootup, you should be greeted by "press enter to enable shell " or similar message, Press return to open the prompt to type the username (`root`) and the root password you generated on the prep step. 
+This operation will be done from ssh.
+Using the serial header  can give you a better picture of the state of the device since it outputs bootloader & other debug messages, but it is not required. 
+```
+ssh -oHostKeyAlgorithms=+ssh-dss root@192.168.1.254
+``` 
 
 
 The stock device reports `zycli sys atsh` as following: 
@@ -59,73 +51,51 @@ On [this](https://github.com/AgostinoA/OpenWrt-ZyXEL-VMG8825-T50/blob/main/stock
 This happens to have very similar specs (SoC & ram capacity) with the _VMG8623-T50B Generic_ whose model ID is `0x4553`, shared with `EMG5523-T50A Generic`.
 
 While Investigating the firmware available on [zyxel's website](https://www.zyxel.com/global/en/support/download?model=vmg3625-t50b) we find out that `04 05 05 03` with a hex encoding is found in what looks to be a file header on the ABPM branch.
-therefore, changing the ModelID is likely possible. Lets do it then 
+therefore, changing the ModelID is  possible. Lets do it then 
 
 
 # Step 1 (Unlocking the bootloader)
 
-## 1. Locate the bootloader
+## 1. Dump The bootloader 
 
-Running `cat /proc/mtd` will output: 
-``` 
-mtd0: 00040000 00020000 "bootloader"
-mtd1: 00040000 00020000 "romfile"
-mtd2: 00204753 00020000 "kernel"
-mtd3: 01940004 00020000 "rootfs"
-mtd4: 02800000 00020000 "tclinux"
-mtd5: 001fdc0c 00020000 "kernel_slave"
-mtd6: 01780004 00020000 "rootfs_slave"
-mtd7: 026a0000 00020000 "tclinux_slave"
-mtd8: 00100000 00020000 "wwan"
-mtd9: 00400000 00020000 "data"
-mtd10: 00100000 00020000 "rom-d"
-mtd11: 02000000 00020000 "misc"
-mtd12: 000c0000 00020000 "reservearea"
-```
-And this will show us that `mtd0` is the bootloader that we want to extract. 
-
-## 2. Dump The bootloader 
-
-Connect the flash drive to the device and type 
+Knowing that the bootloader used mtd0 we can dump it using the following command
 
 ```
-cd /mnt/usbX_sdYZ
+dd if=/dev/mtd0 of=/home/root/bootloader.bin
 ```
-X , Y , Z are place holders cause different devices can change where they are mounted. For example, I got `usb2_sda1`
-
-Now that we are on the flash drive , we will extract the bootloader on the usb. This is so we won’t need SCP to transfer the bootloader back and forth.
-
+We now have saved the bootloader in `/home/root/bootloader.bin` as _bootloader.bin_ .
+After opening a new  terminal window we will transfer the bootloader image using scp to our linux machine  
 ```
-dd if=/dev/mtd0 of=/mnt/usbX_sdYZ/bootloader.bin
+scp -O -oHostKeyAlgorithms=+ssh-dss root@192.168.1.254:/home/root/bootloader.bin bootloader.bin
 ```
-
-This will have dumped the bootloader partition on the usbFlash. 
-Grab the usb flash, plug it on the computer and open _bootloader.bin_ on okteta (the hex editor of my choice, feel free to use what you are comfortable with)
+This will have dumped the bootloader partition on our host machine. 
 
 ## 3. Patch the bootloader 
 
+Open bootloader.bin on okteta (the hex editor of my choice, feel free to use what you are comfortable with)
+
 Edit the byte sequence : `04 05 0F 0D` at offset `0000FFC0` (on my bootloader , yours might be different) To `04 05 05 03`,
 
-save it on the flash drive as _patchedBootloader.bin_ safe remove the usb flash and connect the flash drive back to the device
-
-connect the flash drive back to the router, Keep in mind that there is a chance that the path changed.For example in mine initaly was mounted on  `/mnt/usb2_sda1` but then was changed to `/mnt/usb2_sdb1` !
-
-once in the directory with the patched bootloader, type the command 
+save it  as _patchedBootloader.bin_ on the directory you downloaded _bootloader.bin_ to and move it back to the device
+```
+scp -O -oHostKeyAlgorithms=+ssh-dss  patchedBootloader.bin root@192.168.1.254:/home/root/bootloader.bin
+```
+ Then on the original terminal where we have sshed into the route we run the following commands
 
 ```
-mtd unlock && mtd writeflash patchedBootloader.bin 262144 0 bootloader && zycli sys atcd && reboot
+mtd unlock
+mtd writeflash bootloader.bin 262144 0 bootloader
+zycli sys atcd
 ```
 
-followed with a device rtfd (reset to factory defaults)
-
-```
-zycli sys atcr reboot
-```
 
 # Step 2  (Flashing Stock Firmware)
 
 After a reboot we see that we can update the firmware using [Zyxel's official downloads](https://www.zyxel.com/global/en/support/download?model=vmg3625-t50b)
 
-After flashing the firmware the device will change IP from `192.168.1.254` to `192.168.1.1` , you can login as a souperadmin with the password written in the label 
+After that we flash the firmware [at https://192.168.1.254/FirmwareUpgrade)](https://192.168.1.254/FirmwareUpgrade) checking the "Reset All Settings After Firmware Upgrade" option
 
-Now you own a device that can , from now on ,be updated using the web Ui and is basically indistinguishable in all terms other than the Serial Number from a Generic Device.
+After flashing the firmware the device will change IP from `192.168.1.254` to `192.168.1.1` , you can login as a admin with the password written in the label
+or as a supervisor using the password from the ZyxelRoot.py
+
+Now you own a device that can , from now on ,be updated using the web Ui and is basically indistinguishable in all terms other than the Serial Number being marked as an ISP device from a Generic Device.
