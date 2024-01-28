@@ -40,7 +40,7 @@ First MAC Address       : macadress
 Last MAC Address        : macadress+0xf
 MAC Address Quantity    : 16
 Default Country Code    : (country code)
-Boot Module Debug Flag  : 01
+Boot Module Debug Flag  : 00
 Kernel Checksum         : 68A00776
 RootFS Checksum         : EB4B7592
 Romfile Checksum        : 00000F7B
