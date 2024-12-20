@@ -84,7 +84,7 @@ printf '\x04\x05\x05\x03' | dd of=bootloader bs=1 seek=$((0xffc1)) conv=notrunc
 ```
 You should also consider enabling the debug bit while you're doing it to gain access to all the bootloader commands and all zycli commands and some wifi calibration commands too
 ```
-printf '\x01' | dd of=bootloader bs=1 seek=$((0xffc7)) conv=notrunc
+printf '\x01' | dd of=bootloader bs=1 seek=$((0xffbf)) conv=notrunc
 ```
  After all that assuming that all went well and we did enable the debug bit the output should be as following from the following command
 ```
@@ -104,7 +104,7 @@ The output should be as follows
 ```
 If both the previous steps are complete then we are ready to flash the file using the following commands
 ```
-mtd unlock
+mtd unlock mtd0
 mtd writeflash bootloader 262144 0 bootloader
 zycli sys atcd
 reboot
