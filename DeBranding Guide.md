@@ -11,6 +11,8 @@
 
 Use the password generator in the ZyxelRoot.py file (Execute it online [Here](https://www.onlinegdb.com/XR_spa_we)) to generate the device's root password for the zycli shell, accessible from both SSH & serial TTL. 
 
+> Some routers have a preset password for wifi/admin/supervisor written in flash that is not compatible with the above method. Those routers can still be flashed by the Web Flash. Using an image with a built in script to change the debug bit and then set a password of your own can get you a functional root password. See ModifyingGPLSources.md . An example for this modification can be found here https://owo.whats-th.is/7nTEaRy.bin or in SampleGPLModifications/
+
 ## 2. Connect to the device 
 
 This operation will be done from ssh.
