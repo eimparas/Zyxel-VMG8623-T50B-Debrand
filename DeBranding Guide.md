@@ -2,7 +2,7 @@
 > A guide to debrand (remove ISP firmware & locked bootloader) the Zyxel VMG8623-T50B router
 
 ## Tools required 
-- A Linux machine(or a machine that can ssh into the router and use scp to move files) & a hex editor (okteta for example)
+- A Linux machine(or a machine that can ssh into the router)
 
 
 # Step 0 (Pre-Requisites)
@@ -10,6 +10,8 @@
 ## 1. Obtain the root password for your device 
 
 Use the password generator in the ZyxelRoot.py file (Execute it online [Here](https://www.onlinegdb.com/XR_spa_we)) to generate the device's root password for the zycli shell, accessible from both SSH & serial TTL. 
+
+> Some routers have a preset password for wifi/admin/supervisor written in flash that is not compatible with the above method. Those routers can still be flashed by the Web Flash. Using an image with a built in script to change the debug bit and then set a password of your own can get you a functional root password. See ModifyingGPLSources.md . An example for this modification can be found here https://owo.whats-th.is/7nTEaRy.bin or in SampleGPLModifications/
 
 ## 2. Connect to the device 
 
@@ -28,8 +30,8 @@ Bootbase Version        : V[version] | [date{
 Vendor Name             : Zyxel Communications Corp.
 Product Model           : VMG8623-T50B
 Serial Number           : S220Y10021864
-First MAC Address       : macadress
-Last MAC Address        : macadress+0xf
+First MAC Address       : macaddress
+Last MAC Address        : macaddress+0xf
 MAC Address Quantity    : 16
 Default Country Code    : (country code)
 Boot Module Debug Flag  : 00
@@ -61,31 +63,53 @@ therefore, changing the ModelID is  possible. Lets do it then
 Knowing that the bootloader used mtd0 we can dump it using the following command
 
 ```
-dd if=/dev/mtd0 of=/home/root/bootloader.bin
+dd if=/dev/mtd0 of=/home/root/bootloader
 ```
-We now have saved the bootloader in `/home/root/bootloader.bin` as _bootloader.bin_ .
-After opening a new  terminal window we will transfer the bootloader image using scp to our linux machine  
-```
-scp -O -oHostKeyAlgorithms=+ssh-dss root@192.168.1.254:/home/root/bootloader.bin bootloader.bin
-```
-This will have dumped the bootloader partition on our host machine. 
+We now have saved the bootloader in `/home/root/bootloader` as _bootloader_ .
 
 ## 3. Patch the bootloader 
 
-Open bootloader.bin on okteta (the hex editor of my choice, feel free to use what you are comfortable with)
-
-Edit the byte sequence : `04 05 0F 0D` at offset `0000FFC0` (on my bootloader , yours might be different) To `04 05 05 03`,
-
-save it  as _patchedBootloader.bin_ on the directory you downloaded _bootloader.bin_ to and move it back to the device
+Validate that you have the correct file and the offsets are correct. The router provides a hexdump utility that can be used for that.(note that we use ffd0 not because thats the true offset but because we want the hexdump to provide the ModelID first for this guide's easy use)
 ```
-scp -O -oHostKeyAlgorithms=+ssh-dss  patchedBootloader.bin root@192.168.1.254:/home/root/bootloader.bin
+hexdump -C bootloader | grep -B 1 -A 1 "ffd0"
 ```
- Then on the original terminal where we have sshed into the route we run the following commands
+Confirm the output starts as following
+```
+0000ffc0  00 04 05 0f 0d 00 00 00  00 00 00 00 00 00 00 00  |................|
 
 ```
-mtd unlock
-mtd writeflash bootloader.bin 262144 0 bootloader
+
+Edit the byte sequence : `04 05 0F 0D` at offset `0000FFC0` (on my bootloader , yours might be different, if it is search it using hexdump -C bootloader | grep -i -A 5 "04 05 0F 0D"
+) To `04 05 05 03`,with the following command
+```
+printf '\x04\x05\x05\x03' | dd of=bootloader bs=1 seek=$((0xffc1)) conv=notrunc
+```
+You should also consider enabling the debug bit while you're doing it to gain access to all the bootloader commands and all zycli commands and some wifi calibration commands too
+```
+printf '\x01' | dd of=bootloader bs=1 seek=$((0xffbf)) conv=notrunc
+```
+ After all that assuming that all went well and we did enable the debug bit the output should be as following from the following command
+```
+hexdump -C bootloader | grep -B 1 -A 1 "ffd0"
+```
+Confirm the output starts as following
+```
+0000ffc0  00 04 05 05 03 00 00 01  00 00 00 00 00 00 00 00  |................|
+```
+If you followed the exact steps you should be safe but to prevent the router from dying one last measure you can take is to check the bootloader file has the right size.
+```
+wc -c bootloader
+```
+The output should be as follows
+```
+262144 bootloader
+```
+If both the previous steps are complete then we are ready to flash the file using the following commands
+```
+mtd unlock mtd0
+mtd writeflash bootloader 262144 0 bootloader
 zycli sys atcd
+reboot
 ```
 
 
